@@ -1,5 +1,3 @@
-build/
-dist/
-poetry.lock
-__pycache__/
+target/
+Cargo.lock
 .idea/

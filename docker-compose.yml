@@ -1,0 +1,4 @@
+services:
+  api:
+    build: ./api
+    command: ["--reload", "--host", "0.0.0.0", "main:app"]

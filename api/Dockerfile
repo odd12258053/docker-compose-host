@@ -1,0 +1,17 @@
+ARG PYTHON_VERSION='3.8'
+
+FROM python:${PYTHON_VERSION}
+
+ARG ENV
+ENV APP_DIR /var/app
+
+RUN apt-get update -yqq && apt-get install -yqq gcc
+RUN pip install -q --upgrade pip
+RUN pip install -q fastapi uvicorn
+
+WORKDIR ${APP_DIR}
+COPY ./ ${APP_DIR}
+
+EXPOSE 8000
+ENTRYPOINT ["uvicorn"]
+CMD ["main:app"]
