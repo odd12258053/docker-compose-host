@@ -44,18 +44,18 @@ struct Host {
 
 impl Host {
     fn from_inspect(inspect: &Inspect) -> Self {
-        let mut port_protocol = inspect
+        let port_protocol = match inspect
             .network_settings
             .ports
             .keys()
-            .next()
-            .unwrap()
-            .split("/");
-
+            .next() {
+            None => ["", ""].to_vec(),
+            Some(value) => value.splitn(2, "/").collect()
+        };
         Self {
             name: inspect.name.trim_start_matches("/").to_owned(),
-            port: port_protocol.next().unwrap().to_owned(),
-            protocol: port_protocol.next().unwrap().to_owned(),
+            port: port_protocol.get(0).unwrap_or(&"").to_string(),
+            protocol: port_protocol.get(1).unwrap_or(&"").to_string(),
             ip: inspect
                 .network_settings
                 .networks
@@ -69,6 +69,9 @@ impl Host {
     }
 
     fn url(&self) -> String {
+        if self.port.len() == 0 {
+            return format!("http://{}", self.ip)
+        }
         format!("http://{}:{}", self.ip, self.port)
     }
 }

@@ -1,4 +1,12 @@
 services:
   api:
-    build: ./api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    command: ["--reload", "--host", "0.0.0.0", "main:app"]
+
+  api_without_expose:
+    build:
+      context: ./api
+      dockerfile: Dockerfile_without_expose
     command: ["--reload", "--host", "0.0.0.0", "main:app"]
