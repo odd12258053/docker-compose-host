@@ -35,27 +35,39 @@ struct Inspect {
 }
 
 #[derive(Debug)]
+struct Port {
+    protocol: String,
+    port: String,
+}
+
+#[derive(Debug)]
 struct Host {
     name: String,
-    protocol: String,
     ip: String,
-    port: String,
+    ports: Vec<Port>,
 }
 
 impl Host {
     fn from_inspect(inspect: &Inspect) -> Self {
-        let port_protocol = match inspect
-            .network_settings
-            .ports
-            .keys()
-            .next() {
-            None => ["", ""].to_vec(),
-            Some(value) => value.splitn(2, "/").collect()
-        };
+        // let port_protocol = match inspect
+        //     .network_settings
+        //     .ports
+        //     .keys()
+        //     .next() {
+        //     None => ["", ""].to_vec(),
+        //     Some(value) => value.splitn(2, "/").collect()
+        // };
         Self {
             name: inspect.name.trim_start_matches("/").to_owned(),
-            port: port_protocol.get(0).unwrap_or(&"").to_string(),
-            protocol: port_protocol.get(1).unwrap_or(&"").to_string(),
+            // port: port_protocol.get(0).unwrap_or(&"").to_string(),
+            // protocol: port_protocol.get(1).unwrap_or(&"").to_string(),
+            ports: inspect.network_settings.ports.keys().map(|x| {
+                let arr: Vec<&str> = x.splitn(2, "/").collect();
+                Port {
+                    port: arr[0].to_string(),
+                    protocol: arr[1].to_string()
+                }
+            }).collect(),
             ip: inspect
                 .network_settings
                 .networks
@@ -68,12 +80,34 @@ impl Host {
         }
     }
 
-    fn url(&self) -> String {
-        if self.port.len() == 0 {
-            return format!("http://{}", self.ip)
+    fn make_url(ip: &String, port: &Port) -> String {
+        if port.protocol == "tcp" {
+            format!("http://{}:{}", ip, port.port)
+        } else {
+            "".to_string()
         }
-        format!("http://{}:{}", self.ip, self.port)
     }
+
+    fn len_name(&self) -> usize {
+        self.name.len()
+    }
+
+    fn len_ip(&self) -> usize {
+        self.ip.len()
+    }
+
+    fn len_protocol(&self) -> usize {
+        self.ports.iter().fold(0, |acc , port| max(acc, port.protocol.len()))
+    }
+
+    fn len_port(&self) -> usize {
+        self.ports.iter().fold(0, |acc , port| max(acc, port.port.len()))
+    }
+
+    fn len_url(&self) -> usize {
+        self.ports.iter().fold(0, |acc , port| max(acc, Host::make_url(&self.ip, port).len()))
+    }
+
 }
 
 fn center(val: &String, width: usize) -> String {
@@ -179,19 +213,19 @@ fn main() {
     let json: Vec<Inspect> = serde_json::from_str(data).unwrap();
     let hosts: Vec<Host> = json.iter().map(Host::from_inspect).collect();
 
-    let max_len_name = hosts.iter().fold(4, |acc, host| max(acc, host.name.len()));
+    let max_len_name = hosts.iter().fold(4, |acc, host| max(acc, host.len_name()));
     let max_len_protocol = hosts
         .iter()
-        .fold(8, |acc, host| max(acc, host.protocol.len()));
-    let max_len_ip = hosts.iter().fold(2, |acc, host| max(acc, host.ip.len()));
-    let max_len_port = hosts.iter().fold(4, |acc, host| max(acc, host.port.len()));
-    let max_len_url = hosts.iter().fold(3, |acc, host| max(acc, host.url().len()));
+        .fold(8, |acc, host| max(acc, host.len_protocol()));
+    let max_len_ip = hosts.iter().fold(2, |acc, host| max(acc, host.len_ip()));
+    let max_len_port = hosts.iter().fold(4, |acc, host| max(acc, host.len_port()));
+    let max_len_url = hosts.iter().fold(3, |acc, host| max(acc, host.len_url()));
 
     println!(
         "{}  {}  {}  {}  {}",
         center(&"Name".to_string(), max_len_name),
-        center(&"Protocol".to_string(), max_len_protocol),
         center(&"Ip".to_string(), max_len_ip),
+        center(&"Protocol".to_string(), max_len_protocol),
         center(&"Port".to_string(), max_len_port),
         center(&"Url".to_string(), max_len_url),
     );
@@ -200,14 +234,46 @@ fn main() {
         "-".repeat(max_len_name + max_len_protocol + max_len_ip + max_len_port + max_len_url + 10)
     );
     for host in hosts {
-        println!(
-            "{}  {}  {}  {}  {}",
-            ljust(&host.name, max_len_name),
-            ljust(&host.protocol, max_len_protocol),
-            ljust(&host.ip, max_len_ip),
-            ljust(&host.port, max_len_port),
-            ljust(&host.url(), max_len_url),
-        );
+        if host.ports.len() == 0 {
+            println!(
+                "{}  {}  {}  {}  {}",
+                ljust(&host.name, max_len_name),
+                ljust(&host.ip, max_len_ip),
+                ljust(&"".to_string(), max_len_protocol),
+                ljust(&"".to_string(), max_len_port),
+                ljust(&"".to_string(), max_len_url),
+            );
+        } else {
+            let mut port_iter = host.ports.iter();
+            match port_iter.next() {
+                Some(port) => {
+                    println!(
+                        "{}  {}  {}  {}  {}",
+                        ljust(&host.name, max_len_name),
+                        ljust(&host.ip, max_len_ip),
+                        ljust(&port.protocol, max_len_protocol),
+                        ljust(&port.port, max_len_port),
+                        ljust(&Host::make_url(&host.ip, &port), max_len_url),
+                    );
+                }
+                None => continue
+            }
+            loop {
+                match port_iter.next() {
+                    Some(port) => {
+                        println!(
+                            "{}  {}  {}  {}  {}",
+                            ljust(&"".to_string(), max_len_name),
+                            ljust(&"".to_string(), max_len_ip),
+                            ljust(&port.protocol, max_len_protocol),
+                            ljust(&port.port, max_len_port),
+                            ljust(&Host::make_url(&host.ip, &port), max_len_url),
+                        );
+                    }
+                    None => break
+                }
+            }
+        }
     }
 }
 

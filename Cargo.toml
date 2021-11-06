@@ -1,6 +1,6 @@
 [package]
 name = "docker-compose-host"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["odd <odd12258053@gmail.com>"]
 edition = "2018"
 
