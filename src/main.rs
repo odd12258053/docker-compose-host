@@ -3,14 +3,13 @@ use std::env::args;
 use std::process::exit;
 use std::process::Command;
 use std::str;
+use std::path::Path;
+use std::cmp::max;
 
 use serde_json::Value;
-use std::cmp::max;
 
 #[macro_use]
 extern crate serde_derive;
-
-const CONFIG_FILE: &str = "docker-compose.yml";
 
 #[derive(Deserialize, Serialize)]
 struct Network {
@@ -142,7 +141,7 @@ fn show_help() {
             "    -f, --file File",
             format!(
                 "        Specify an alternate compose file. Default: {}",
-                CONFIG_FILE
+                "docker-compose.yml or compose.yml"
             )
             .as_str(),
             "    --help",
@@ -172,7 +171,16 @@ macro_rules! show_help {
 }
 
 fn main() {
-    let mut config_file = CONFIG_FILE.to_owned();
+    let mut config_file = {
+        if Path::new("docker-compose.yml").exists() {
+            "docker-compose.yml".to_owned()
+        } else if Path::new("compose.yml").exists() {
+            "compose.yml".to_owned()
+        } else {
+            "".to_owned()
+        }
+    };
+
     let mut args = args();
     // skip arg[0]
     args.next();
@@ -183,7 +191,7 @@ fn main() {
                 if arg == "-f" || arg == "--file" {
                     if let Some(arg) = args.next() {
                         show_help!(arg);
-                        config_file = arg.to_owned()
+                        config_file = arg.to_owned();
                     }
                 }
             }
@@ -191,16 +199,32 @@ fn main() {
         }
     }
 
-    let ret = Command::new("docker-compose")
+    if config_file == "" || !Path::new(&config_file).exists() {
+        println!("Not found a compose file");
+        exit(1);
+    }
+
+    let ret = Command::new("docker")
+        .args(&["compose"])
         .args(&["-f", config_file.as_str(), "ps", "-q"])
         .output()
         .expect("failed to execute process");
-    let container_ids: Vec<&str> = str::from_utf8(&ret.stdout)
-        .unwrap()
-        .strip_suffix("\n")
-        .unwrap()
-        .split("\n")
-        .collect();
+    let container_ids: Vec<&str> = match str::from_utf8(&ret.stdout) {
+        Ok(out) => {
+            if out == "" {
+                exit(0)
+            }
+            out
+            .strip_suffix("\n")
+            .unwrap()
+            .split("\n")
+            .collect()
+        }
+        Err(e) => {
+            println!("Has error: {}", e);
+            exit(1)
+        }
+    };
 
     let ret = Command::new("docker")
         .args(&["container", "inspect"])
